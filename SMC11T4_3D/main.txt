@@ -1,0 +1,457 @@
+/batch
+
+!###########################################################################
+! 	Short Model Coil (SMC): 3-D Quench Propagation Model
+!###########################################################################
+
+FINISH
+/CLEAR
+
+!###########################################################################
+! Before running main.txt check the following
+!###########################################################################
+
+! Ensure the working directory is correct before running Main_prog
+/CWD,'C:\APDL_SMC11T4b_3D'
+/FILENAME,QPV
+
+! Simulation Time
+TSIM = 30e-3
+
+! Time step and maximum number of steps
+DT = 20E-6
+NSIM = TSIM/DT
+
+! hopt = 'TEMP' 	A temperature increase over Tc in some volumes triggers the quench
+! hopt = 'POW'		Energy released in some volumes triggers the quench
+! hopt = 'SHEATER'	A spot heater placed on top of the cable triggers the quench
+! hopt = 'SHFLOW'	A spot heater is simulated by applying a heat flux on the area where it's placed
+hopt = 'TEMP'
+
+! In case hopt is set to 'POW'
+Epow = 10e-6		! Energy [J]
+Tpow = 100e-6		! Time during which energy is released [s]
+
+! In case hopt is set to 'SHEATER'
+HeatGen = 5e10		! Volumetric heat generation in the heater [W/m^3]
+TimeGen = 0.1		! Time during which heat generation is applied [s]
+
+! In case hopt is set to 'SHFLOW'
+HeatFlux = 5e5		! Heat flux from the heater [W/m^2]
+TimeFlux = 0.1		! Time during which heat flux is applied [s]
+
+total_strands = 40	! Number of strands in Rutherford cable
+half_strands = 1	! Number of half strands to simulate
+
+*IF,hopt,EQ,'SHEATER',OR,hopt,EQ,'SHFLOW',THEN
+	half_strands = 2
+*ENDIF
+
+! diopt = 0 No current extraction
+! diopt <> 0 With Current extraction
+diopt = 0
+
+!***************************************************************************
+! Geometry parameters
+!***************************************************************************
+
+! Length corresponding to the straight part of conductor in the coil between the voltage taps
+LEN = 0.130764705882354
+
+! Number of divisions per mm along the cable (at least 5)
+NDIV = 5		
+
+! Section geometry [m]
+d_b = 0.0007				! Diameter of strand
+r_b = d_b/2				! Radius of strand
+cu_noncu = 1.25				! Copper to non-copper ratio
+r_in_cu = d_b/4*cu_noncu/(1+cu_noncu)	! Inner copper radius
+e_cu = d_b/4*cu_noncu/(1+cu_noncu)	! Outter copper thickness
+e_supra = d_b/2/(1+cu_noncu)		! Superconductor thickness
+e_imp = 0.00002				! Minimum impregnation thickness
+e_iso = 0.00015				! Insulation thickness
+	
+PI = acos(-1)
+! Superconductor area of a strand
+Ssc1 = PI*(e_supra**2 + 2*r_in_cu*e_supra)
+Scu1 = PI*r_b**2 - Ssc1		! Copper area of a strand		
+Scu = total_strands*Scu1	! Total copper area in the section
+Ssc = total_strands*Ssc1	! Total superconductor area in the section
+
+! Heater Geometry [m]
+LHEATER = 0.002			! Heater length
+e_heater = 2.5e-5		! Heater height
+ZHEATER = (LEN-LHEATER)/2	! Heater position in the cable
+
+! Geometry parameters have been set
+geometry = 1
+
+!***************************************************************************
+
+
+!***************************************************************************
+! Initial Conditions
+!***************************************************************************
+
+! Initial temperature [K]
+TEMPIN = 1.9
+
+! Initial current [A]
+Iop = 11000
+
+! Initial Current density [kA/mm^2]	
+Jc = Iop/Ssc*1e-9
+
+! Load-line parameters, B[T] = LLa*I[A] + LLb
+LLa = 1e-3/1.386
+LLb = 2.84/1.386
+
+! Initial Magnetic field
+BF = LLa*Iop + LLb
+
+!***************************************************************************
+
+
+!***************************************************************************
+! Copper resistivity parameters
+!***************************************************************************
+
+RRR = 115		! Residual Resistivity Ratio		
+DATASET = 'CUDI'
+
+!***************************************************************************
+
+
+!***************************************************************************
+! Quench protection parameters
+!***************************************************************************
+
+Rd = 40			! Dump resistor [Ohm]
+L = 1.43e-3		! Magnet inductance [H]
+VTR = 0.05		! Voltage threshold for quench detection [V]
+
+!***************************************************************************
+
+
+!***************************************************************************
+! Critical Surface options
+!***************************************************************************
+
+! Nb3Sn Critical Surface parameters [T], [K], [kA/mm^2]
+Bc20 = 29.9068115878001
+Tc0 = 15.8568564941422
+CJ = 176181761054E-9
+
+TOL = 1e-5		! Newton-Raphson tolerance
+Tc = 8			! Initial guess for Newton-Raphson [K]
+
+/INPUT, tcrit, txt
+
+Tcin = Tc
+TcMax = TEMPIN
+
+!***************************************************************************
+
+! Material properties
+NTEMP = 100		! Number of data point (max. 100)
+MINTEMP = 1		! Minimum temperature for material properties [K]
+	
+! Maximum temperature for material properties [K]
+*IF,hopt,EQ,'TEMP',THEN
+	MAXTEMP = 100
+*ELSE
+	MAXTEMP =300
+*ENDIF
+
+!###########################################################################
+
+
+
+!###########################################################################
+! Geometry and mesh
+!###########################################################################
+
+/UNIT,SI
+
+*IF,hopt,EQ,'SHEATER',OR,hopt,EQ,'SHFLOW',THEN
+	! If a heater is simulated a finer mesh must be used for the insulation
+	top_ins_div = 6
+*ELSE
+	top_ins_div = 2
+*ENDIF
+
+! Geometry
+/INPUT, 3Dgeom, txt
+
+/PREP7
+
+*IF,hopt,NE,'SHEATER',THEN
+	! Remove heater
+	ALLS
+	VSEL,S,LOC,Y,2*(r_b+e_imp)+e_iso,2*(r_b+e_imp)+e_iso+e_heater     
+	VDELE,ALL,,,1
+*ENDIF
+
+*IF,half_strands,EQ,7,OR,half_strands,EQ,1,THEN	
+	! Remove lower strands
+	ALLS   
+	VSEL,S,LOC,Y,-2*(r_b+e_imp)-e_iso,0
+	VDELE,ALL,,,1
+*ENDIF
+
+*IF,half_strands,EQ,2,OR,half_strands,EQ,1,THEN
+	! Keep half strands under the heater
+	ALLS
+	VSEL,S,LOC,X,r_b+e_imp,7*(r_b+e_imp)+e_iso     
+	VDELE,ALL,,,1
+*ENDIF
+
+ALLS
+nummrg,KP,1e-7,,,
+NUMCMP,all
+
+FINISH
+
+! Mesh geometry
+/INPUT, 3Dmesh, txt
+
+! Set component colors
+/COLOR,CM,RED,COPPER
+/COLOR,CM,GCYA,IMPREG   
+/COLOR,CM,CBLU,INSUL 
+/COLOR,CM,ORAN,SUPERCOND
+
+*IF,hopt,EQ,'SHEATER',THEN
+	/COLOR,CM,YELL,HEATER
+*ENDIF
+ 
+/GTYPE,1,KEYP,0 
+/GTYPE,1,LINE,0 
+/GTYPE,1,AREA,0 
+/GTYPE,1,VOLU,1 
+/GTYPE,1,NODE,0 
+/GTYPE,1,ELEM,1 
+/GCMD,1 
+ 
+GPLOT 
+
+! Coupling electrically copper and Nb3Sn nodes at z = LEN
+/PREP7
+CMSEL,S,SUPERCOND
+CMSEL,A,COPPER
+NSLV,S,1
+NSEL,R,LOC,Z,LEN-ZHEATER
+CP,1,VOLT,ALL
+NI = NDNEXT(0)
+ALLS
+
+FINISH
+
+!###########################################################################
+
+
+!###########################################################################
+! Tables and arrays definition
+!###########################################################################
+
+! Tables to store current and magnetic field over time 
+*DIM,I_ARR,ARRAY,NSIM+1,2
+I_ARR(1,1) = 0
+I_ARR(1,2) = Iop
+*DIM,B_ARR,ARRAY,NSIM+1,2
+B_ARR(1,1) = 0
+B_ARR(1,2) = Bf
+
+*DIM,NMAXTEMP_ARR,ARRAY,NSIM+1,2
+NMAXTEMP_ARR(1,1) = 0
+NMAXTEMP_ARR(1,2) = TEMPIN
+*DIM,NMINTEMP_ARR,ARRAY,NSIM+1,2
+NMINTEMP_ARR(1,1) = 0
+NMINTEMP_ARR(1,2) = TEMPIN
+
+*DIM,EMAXTEMP_ARR,ARRAY,NSIM+1,6
+EMAXTEMP_ARR(1,1) = 0
+EMAXTEMP_ARR(1,2) = TEMPIN
+*DIM,EMINTEMP_ARR,ARRAY,NSIM+1,6
+EMINTEMP_ARR(1,1) = 0
+EMINTEMP_ARR(1,2) = TEMPIN
+
+CMSEL,S,SUPERCOND
+ESLV,R
+*GET,NoElem,ELEM,0,COUNT		! Number of Nb3Sn elements
+*DIM,Nb3SnElem,ARRAY,NoElem		! Array storing Nb3Sn element numbers
+*DIM,Tsc,ARRAY,NoElem			! Array storing the temperature in each Nb3Sn element
+*VGET,Nb3SnElem(1,1),elem,,ELIST	! Get Nb3Sn element numbers 
+ALLS
+
+! Array containing material property of each Nb3SN element (4 = superconducting, 8 = resistive)
+*DIM,quenched,ARRAY,NoElem		
+*DO,jj,1,NoElem,1
+	quenched(jj) = 4		! Initially all Nb3Sn elements are superconductor
+*ENDDO
+
+! Get Nb3Sn elements under the spot heater
+*IF,hopt,EQ,'SHEATER',OR,hopt,EQ,'SHFLOW',THEN
+	CMSEL,S,SUPERCOND
+	VSEL,R,LOC,Z,LHEATER/2
+	ESLV,R
+	*GET,NoElemiS,ELEM,0,COUNT
+	*DIM,Nb3SnElemiS,ARRAY,NoElemiS
+	*VGET,Nb3SnElemiS(1,1),elem,,ELIST
+	ALLS
+*ENDIF
+
+!###########################################################################
+
+
+
+!###########################################################################
+! Resolution
+!###########################################################################
+
+/SOLU
+
+! Transient thermal analysis
+ANTYPE,4			
+
+
+!***************************************************************************
+! Boundary Conditions
+!***************************************************************************
+
+! Set adiabatic boundary conditions on all exterior surfaces
+ASEL,S,EXT
+SFA,ALL,1,HFLUX,0  
+ALLS
+
+! Set zero voltage on Nb3Sn and copper areas at z = 0
+CMSEL,S,SUPERCOND 
+CMSEL,A,COPPER  
+ASLV,S
+ASEL,R,LOC,Z,-ZHEATER  
+DA,ALL,VOLT,0
+ALLS
+
+! Set volumentric heat generation in the heater
+*IF,hopt,EQ,'SHEATER',THEN
+	*DIM,SPOTHEATER,TABLE,3,1,1,TIME
+	SPOTHEATER(1,0,1) = 0, TimeGen, TimeGen
+	SPOTHEATER(1,1,1) = HeatGen, HeatGen, 0
+	BFV,HEATER,HGEN,%SPOTHEATER%
+*ELSEIF,hopt,EQ,'SHFLOW',THEN
+	*DIM,SPOTHEATER,TABLE,3,1,1,TIME
+	SPOTHEATER(1,0,1) = 0, TimeFlux, TimeFlux
+	SPOTHEATER(1,1,1) = HeatFlux, HeatFlux, 0
+	ASEL,S,LOC,Z,0,lheater    
+	ASEL,R,LOC,Y,2*(r_b+e_imp)+e_iso
+	SFADELE,ALL,1,HFLUX
+	SFA,ALL,1,HFLUX,%SPOTHEATER% 
+	ALLS
+*ENDIF
+
+
+!***************************************************************************
+! Initial Conditions
+!***************************************************************************
+
+! Initial Uniform Temperature
+
+*IF,hopt,EQ,'SHEATER',OR,hopt,EQ,'SHFLOW',THEN
+	TUNIF,TEMPIN
+	hopt = 'SHEATER'	! During solution loop 'SHFLOW' and 'SHEATER' are equivalent
+*ELSEIF,hopt,EQ,'TEMP',THEN
+	ALLS
+	IC,ALL,TEMP,TEMPIN  
+
+	CMSEL,S,SUPERCOND
+	VSEL,R,LOC,Z,LHEATER/2
+	ESLV,R,1
+	MPCHG,8,ALL
+	NSLE,R
+	IC,ALL,TEMP,Tcin
+	ALLS    
+*ELSEIF,hopt,EQ,'POW',THEN
+	ALLS
+	IC,ALL,TEMP,TEMPIN
+
+	Vpow = Ssc*LHEATER*half_strands/total_strands/2
+	Gpow = Epow/(Vpow*Tpow)
+	*DIM,HG,TABLE,3,1,1,TIME, ,
+	HG(1,0,1) = 0, Tpow, Tpow
+	HG(1,1,1) = Gpow, Gpow, 0
+
+	ALLS
+	CMSEL,S,SUPERCOND  
+	VSEL,R,LOC,Z,LHEATER/2 
+	BFV,ALL,HGEN, %HG%
+	ALLS
+*ENDIF  
+
+qnumber = 0			! Number of quenched elements
+
+*DO,jj,1,NoElem,1
+	*GET,quenched(jj),ELEM,Nb3SnElem(jj),ATTR,MAT
+	*IF,quenched(jj),eq,8,THEN
+		qnumber = qnumber + 1
+	*ENDIF
+*ENDDO	   
+
+
+!***************************************************************************
+! Solution Controls
+!***************************************************************************
+
+kbc,1                  	! step loads
+trnopt,full
+autos,on               	! auto time-stepping
+nropt,full		! Newton Raphson = full
+lumpm,0			! Lumped mass approx off
+lnsrch,on		! Line search on
+OUTRES,ERASE
+OUTRES,NSOL,LAST
+EQSLV,SPAR		! Sparse direct solver	
+
+NEQIT,50  
+CNVTOL,HEAT, ,0.001,2, ,
+CNVTOL,AMPS, ,0.01,2, ,   				
+DELTIM,DT/2,1e-7,DT,on  
+ 
+
+!***************************************************************************
+! Solution Loop
+!***************************************************************************
+
+EFLAG = 0		! Current extraction indicator
+STP = 1			! STP = 0 Terminate solution loop
+jj = 1			! Counter
+stime = 0		! Initial time to simulate
+zmax = 0		! Maximum coordinate of a quenched element
+zmin = 0		! Minimum coordinate of a quenched element
+
+/INQUIRE,status,EXIST,report,txt
+*IF,status,EQ,1,THEN 
+	/DELE,report,txt 
+*ENDIF
+
+! Quench indicator
+*IF,hopt,EQ,'TEMP',THEN
+	QFLAG = 1
+	*CFOPEN,report,txt,,APPEND
+	*vwrite,jj,stime*1000
+	Time step %4i: Quench started at %4.3f ms.
+	*CFCLOSE
+*ELSE
+	QFLAG = 0
+*ENDIF
+
+*IF,NSIM,ge,1000,THEN
+	*CFOPEN,report,txt,,APPEND
+	*vwrite,NSIM
+		WARNING: %5f time steps might be necessary. Consider reducing the simulation time or increasing the time step interval.
+*ENDIF
+
+FINISH
+
+/INPUT,solver,txt
+
+!###########################################################################

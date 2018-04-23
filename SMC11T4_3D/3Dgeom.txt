@@ -1,0 +1,504 @@
+/PREP7
+
+!###########################################################################
+! 	Short Model Coil: Geometry
+!###########################################################################
+
+!***************************************************************************
+! Parameters
+!***************************************************************************
+
+! Number of strands
+n_b=3.5
+
+*get,check,parm,geometry,type 
+
+*IF,check,eq,-1,THEN
+
+	! Length corresponding to the straight part of conductor in the coil between the voltage taps
+	LEN = 0.03
+
+	! Number of divisions per mm on the cable
+	NDIV = 1		
+
+	! Section geometry
+	d_b = 0.00125		! Diameter of strand
+	r_b = d_b/2		! Radius of strand
+	r_in_cu = 0.00017	! Inner copper radius
+	e_cu = 0.000175		! Outter copper thickness
+	e_supra = 0.00028	! Superconductor thickness
+	e_imp = 0.00002		! Minimum impregnation thickness
+	e_iso = 0.0001		! Insulation thickness
+
+	half_strands = 1	! Number of half strands to simulate
+	total_strands = 14	! Number of strands in Rutherford cable
+
+	PI = acos(-1)
+	! Superconductor area of a strand
+	Ssc1 = PI*(e_supra**2 + 2*r_in_cu*e_supra)
+	! Copper area of a strand
+	Scu1 = PI*r_b**2 - Ssc1			
+	Scu = total_strands*Scu1		! Total copper area in the section
+	Ssc = total_strands*Ssc1		! Total superconductor area in the section
+
+	! hopt = 0 No spot heater
+	! hopt <> 0 With spot heater
+	hopt = 0
+
+	! Heater Geometry
+	LHEATER = 0.001		! Heater length
+	e_heater = 0.0001	! Heater height
+	ZHEATER = LEN/2		! Heater position in the cable
+
+	! Geometry parameters have been set
+	geometry = 1
+
+	top_ins_div = 2
+
+*ENDIF
+
+! Number of element per edges
+increment = 6
+
+!***************************************************************************
+! Keypoints, lines, areas positions
+!***************************************************************************
+
+! Circular strand
+CYL4,0,0,r_in_cu,90,,,,
+CYL4,0,0,r_in_cu,90,r_in_cu+e_supra,,
+CYL4,0,0,r_in_cu,90,r_in_cu+e_supra+e_cu,,
+
+! Impregnation impregnation
+RECTNG,0, r_b+e_imp , 0 , r_b+e_imp
+
+AOVLAP,1,2,3,4	! Overlap of the various areas
+
+NUMCMP,all	! Compresses the numbering
+
+
+! Separation des aires dans une perspective de maillage controle
+
+! Creation des lignes pour separer en deux les aires
+
+LANG,       1,      9,90, ,
+LANG,       4,      9,90, ,
+LANG,       5,       9,90, ,
+
+! Separation en deux des aires
+
+ASBL,       2,      15  
+ASBL,       3,      17  
+ASBL,       4,      19
+
+NUMCMP,all
+
+
+!***************************************************************************
+! Control of element sizes
+!***************************************************************************
+
+! Discretisation des arcs de cercles
+
+! Coeur cuivre
+! 	rayon
+!LESIZE,2,,,increment/2,,,,,
+!LESIZE,3,,,increment/2,,,,,
+LESIZE,2,,,4,,,,,
+LESIZE,3,,,4,,,,,
+! 	arc de cercle
+LESIZE,1,,,increment/2,,,,,
+LESIZE,14,,,increment/2,,,,,
+
+! Supra
+! 	epaisseur 
+LESIZE,8,,,increment,,,,,
+LESIZE,9,,,increment,,,,,
+LESIZE,19,,,increment,,,,,
+! Arc de cercle
+LESIZE,4,,,increment/2,,,,,
+LESIZE,16,,,increment/2,,,,,
+
+! Copper externe
+! 	epaisseur
+LESIZE,10,,,increment/2,,,,,
+LESIZE,11,,,increment/2,,,,,
+LESIZE,15,,,increment/2,,,,,
+! 	arc de cercle
+LESIZE,5,,,increment/2,,,,,
+LESIZE,17,,,increment/2,,,,,
+
+! Impregnation
+! 	grand cote
+LESIZE,6,,,increment/2,2,,,,
+LESIZE,7,,,increment/2,0.5,,,,
+! 	petit cote
+LESIZE,12,,,increment/3,,,,,
+LESIZE,13,,,increment/3,,,,,
+LESIZE,18,,,increment/3,,,,,
+
+
+ASEL,S,,,1
+ASEL,A,,,2,6,4
+CM,copper,AREA
+ALLS
+
+ASEL,S,,,4,5,1
+CM,supercond,AREA
+ALLS
+
+ASEL,S,,,3,7,4
+CM,impreg,AREA
+ALLS
+
+
+!***************************************************************************
+! symmetry of the strand 
+! and insulation quarters
+!***************************************************************************
+
+CMSEL,S,copper
+ARSYM,X,copper
+ARSYM,Y,ALL
+AGEN,4,ALL, , ,2*(r_b+e_imp), , , ,0
+!ARSYM,X,ALL
+CMDELE,copper
+CM,copper,AREA
+CMSEL,A,copper 
+ALLS
+
+CMSEL,S,supercond
+ARSYM,X,supercond
+ARSYM,Y,ALL
+AGEN,4,ALL, , ,2*(r_b+e_imp), , , ,0
+!ARSYM,X,ALL
+CMDELE,supercond
+CM,supercond,AREA
+CMSEL,A,supercond 
+ALLS
+
+CMSEL,S,impreg
+ARSYM,X,impreg
+ARSYM,Y,ALL
+AGEN,4,ALL, , ,2*(r_b+e_imp), , , ,0
+!ARSYM,X,ALL
+CMDELE,impreg
+CM,impreg,AREA
+CMSEL,A,impreg 
+ALLS
+
+AGEN, ,ALL, , , ,r_b+e_imp, , , ,1 
+
+CMSEL,S,copper
+ARSYM,Y,copper
+CMDELE,copper
+CM,copper,AREA
+CMSEL,A,copper 
+ALLS
+
+CMSEL,S,supercond
+ARSYM,Y,supercond
+CMDELE,supercond
+CM,supercond,AREA
+CMSEL,A,supercond 
+ALLS
+
+CMSEL,S,impreg
+ARSYM,Y,impreg
+CMDELE,impreg
+CM,impreg,AREA
+CMSEL,A,impreg 
+ALLS
+
+ASEL,S,LOC,X,-r_b-e_imp,0 
+ADELE,ALL, , ,1
+ALLS
+
+nummrg,KP,1e-7,,,	! merge of the coincident KP, lines, etc...
+NUMCMP,all
+
+!***************************************************************************
+! Rectangle insulation
+!***************************************************************************
+
+RECTNG, 0, 7*(r_b+e_imp)+e_iso, -(2*(r_b+e_imp)+e_iso) , 2*(r_b+e_imp)+e_iso
+
+AOVLAP,ALL
+
+nummrg,KP,1e-7,,,	! merge of the coincident KP, lines, etc...
+NUMCMP,all
+
+! Separation de l'isolation en plusieurs airs differentes
+lang,412,9,90   
+lang,412,99,90  
+lang,412,98,90   
+lang,412,104,90 
+lang,412,103,90 
+lang,412,109,90 
+lang,412,108,90 
+lang,411,108,90  
+lang,411,107,90 
+lang,411,110,90 
+lang,411,212,90 
+lang,411,213,90 
+lang,410,213,90
+lang,410,214,90
+lang,410,210,90
+lang,410,211,90
+lang,410,207,90
+lang,410,208,90
+lang,410,204,90
+
+LSEL,S,,,416,452,2
+ASBL,     197,ALL
+
+! Petit cote
+LSEL,S,,,416,428,2
+LESIZE,ALL,,,top_ins_div,,,,,
+LSEL,S,,,430,452,2
+LESIZE,ALL,,,2,,,,,
+
+ALLS
+
+ASEL,S,,,198,217,1
+CM,insul,AREA 
+ALLS
+
+NUMCMP,all
+
+CMSEL,ALL
+CMPLOT
+
+! Spot Heater
+
+RECTNG, 0, 7*(r_b+e_imp)+e_iso, -(2*(r_b+e_imp)+e_iso) , 2*(r_b+e_imp)+e_iso+e_heater
+
+AOVLAP,ALL
+
+LANG,455,219,90
+LANG,455,220,90
+LANG,455,221,90
+LANG,455,222,90
+LANG,455,223,90
+LANG,455,224,90
+LANG,455,225,90
+
+LSEL,S,,,459,469,2
+LSEL,A,,,454
+ASBL,218,ALL
+
+ALLS
+
+LESIZE,457,,,1
+LESIZE,458,,,1
+
+ALLS
+
+LSEL,S,,,415,427,4
+LSEL,A,,,460,468,4
+LSEL,A,,,453
+LESIZE,ALL,,,3,0.5
+ALLS
+
+LSEL,S,,,417,425,4
+LSEL,A,,,462,466,4
+LSEL,A,,,456
+LESIZE,ALL,,,3,2
+ALLS
+
+LSEL,S,,,441,449,4
+LSEL,A,,,410
+LESIZE,ALL,,,3,2
+ALLS
+
+LSEL,S,,,443,451,4
+LESIZE,ALL,,,3,0.5
+ALLS
+
+LSEL,S,,,433,437,4
+LESIZE,ALL,,,3,0.5
+ALLS
+
+LSEL,S,,,431,435,4
+LESIZE,ALL,,,3,2
+ALLS
+
+NUMCMP,all
+
+ASEL,S,,,217,224,1
+CM,heater,AREA 
+ALLS
+
+nummrg,KP,1e-7,,,	! merge of the coincident KP, lines, etc...
+
+!***************************************************************************
+! Extruding Section
+!***************************************************************************
+
+CMSEL,S,supercond
+VEXT,ALL, , ,0,0,LHEATER,,,, 
+CMDELE,supercond
+CM,supercond,VOLU
+CMSEL,A,supercond 
+!ALLS
+CMSEL,NONE
+
+CMSEL,S,copper
+VEXT,ALL, , ,0,0,LHEATER,,,, 
+CMDELE,copper
+CM,copper,VOLU
+CMSEL,A,copper 
+!ALLS
+CMSEL,NONE
+
+
+CMSEL,S,impreg
+VEXT,ALL, , ,0,0,LHEATER,,,, 
+CMDELE,impreg
+CM,impreg,VOLU
+CMSEL,A,impreg 
+!ALLS
+CMSEL,NONE
+
+CMSEL,S,insul
+VEXT,ALL, , ,0,0,LHEATER,,,, 
+CMDELE,insul
+CM,insul,VOLU
+CMSEL,A,insul
+!ALLS
+CMSEL,NONE
+
+CMSEL,S,heater
+VEXT,ALL, , ,0,0,LHEATER,,,, 
+CMDELE,heater
+CM,heater,VOLU
+CMSEL,A,heater
+!ALLS
+CMSEL,NONE
+
+ALLS
+
+!Set number of divisions/mm along z axis
+LSEL,S,LOC,Z,LHEATER/2
+LESIZE,ALL,,,NDIV*LHEATER/0.001,1
+ALLS 
+
+nummrg,KP,1e-7,,,	! merge of the coincident KP, lines, etc...
+NUMCMP,all
+
+!***************************************************************************
+
+cmsel,s,supercond   
+ASLV,R    
+ASEL,R,LOC,Z,LHEATER 
+VEXT,ALL, , ,0,0,LEN-(ZHEATER+LHEATER),,,,
+CMDELE,SUPERCOND
+VSEL,R, , ,ALL
+CM,SUPERCOND,VOLU   
+CMSEL,A,SUPERCOND 
+CMSEL,NONE
+
+ALLS
+
+cmsel,s,supercond   
+ASLV,R    
+ASEL,R,LOC,Z,0
+VEXT,ALL, , ,0,0,-ZHEATER,,,,
+CMDELE,SUPERCOND
+VSEL,R, , ,ALL
+CM,SUPERCOND,VOLU   
+CMSEL,A,SUPERCOND 
+CMSEL,NONE
+
+ALLS
+!***************************************************************************
+
+!***************************************************************************
+CMSEL,S,COPPER  
+ASLV,R    
+ASEL,R,LOC,Z,LHEATER 
+VEXT,ALL, , ,0,0,LEN-(ZHEATER+LHEATER),,,,
+CMDELE,COPPER
+VSEL,R, , ,ALL
+CM,COPPER,VOLU   
+CMSEL,A,COPPER 
+CMSEL,NONE
+
+ALLS
+
+CMSEL,S,COPPER  
+ASLV,R    
+ASEL,R,LOC,Z,0
+VEXT,ALL, , ,0,0,-ZHEATER,,,,
+CMDELE,COPPER
+VSEL,R, , ,ALL
+CM,COPPER,VOLU   
+CMSEL,A,COPPER
+CMSEL,NONE
+
+ALLS
+!***************************************************************************
+
+!***************************************************************************
+CMSEL,S,IMPREG  
+ASLV,R    
+ASEL,R,LOC,Z,LHEATER 
+VEXT,ALL, , ,0,0,LEN-(ZHEATER+LHEATER),,,,
+CMDELE,IMPREG 
+VSEL,R, , ,ALL
+CM,IMPREG,VOLU   
+CMSEL,A,IMPREG 
+CMSEL,NONE
+
+ALLS
+
+CMSEL,S,IMPREG  
+ASLV,R    
+ASEL,R,LOC,Z,0
+VEXT,ALL, , ,0,0,-ZHEATER,,,,
+CMDELE,IMPREG
+VSEL,R, , ,ALL
+CM,IMPREG,VOLU   
+CMSEL,A,IMPREG
+CMSEL,NONE
+
+ALLS
+!***************************************************************************
+
+!***************************************************************************
+CMSEL,S,INSUL  
+ASLV,R    
+ASEL,R,LOC,Z,LHEATER 
+VEXT,ALL, , ,0,0,LEN-(ZHEATER+LHEATER),,,,
+CMDELE,INSUL 
+VSEL,R, , ,ALL
+CM,INSUL,VOLU   
+CMSEL,A,INSUL 
+CMSEL,NONE
+
+ALLS
+
+CMSEL,S,INSUL  
+ASLV,R    
+ASEL,R,LOC,Z,0
+VEXT,ALL, , ,0,0,-ZHEATER,,,,
+CMDELE,INSUL
+VSEL,R, , ,ALL
+CM,INSUL,VOLU   
+CMSEL,A,INSUL
+CMSEL,NONE
+
+ALLS
+!***************************************************************************
+
+!Set 5 divisions/mm along z axis
+LSEL,S,LOC,Z,-ZHEATER/2
+LESIZE,ALL,,,NDIV*ZHEATER/0.001,1
+ALLS 
+
+!Set 5 divisions/mm along z axis
+LSEL,S,LOC,Z,LHEATER + (LEN-LHEATER-ZHEATER)/2
+LESIZE,ALL,,,NDIV*(LEN-LHEATER-ZHEATER)/0.001,1
+ALLS 
+
+FINISH

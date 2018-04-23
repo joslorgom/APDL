@@ -1,0 +1,151 @@
+!***************************************************************************
+! Heat capacity 
+!***************************************************************************
+
+MPTEMP
+
+! NIST. The range of validity of this fit is between 4 K and 300 K
+A(1) = -1.91844
+A(2) = -0.15973
+A(3) = 8.61013
+A(4) = -18.996
+A(5) = 21.9661
+A(6) = -12.7328
+A(7) = 3.54322
+A(8) = -0.3797
+
+*DO,i,1,NTEMP,1
+	T = C(i)
+	*IF,T,ge,4,AND,T,le,300,THEN
+		! NIST. The range of validity of this fit is between 4 K and 300 K
+		X = LOG10(T)
+		EXP = 0
+		*DO,j,1,8,1
+			EXP = EXP + A(j)*(X**(j-1))
+		*ENDDO
+		AUX = 10**EXP
+	*ELSEIF,T,lt,4,THEN
+		! Extrapolation from data
+		AUX = 1.386e-2*T + 6.854e-4*T**3
+	*ENDIF
+	MPTEMP,%i%,%T%
+	MPDATA,C,cuivre,%i%,%AUX%
+*ENDDO
+
+!***************************************************************************
+
+
+
+!***************************************************************************
+! Density
+!***************************************************************************
+
+MP,DENS,cuivre, 8960
+
+!***************************************************************************
+
+
+
+!***************************************************************************
+! Resistivity
+!***************************************************************************
+
+MPTEMP
+
+*DIM,rhoz,,NTEMP
+*DIM,rhomag,,NTEMP
+
+*IF,DATASET,eq,'CUDI',THEN
+	! CUDI
+	c0 = 1.7
+	c1 = 2.33e9
+	c2 = 9.57e5
+	c3 = 160
+	mr = 5e-11	! Magneto-resistivity parameter (CUDI correlation)
+	*DO,i,1,NTEMP,1
+		T = C(i)
+		rhoz(i) = (c0/RRR + 1/(c1*T**(-5) + c2*T**(-3) + c3*T**(-1)))*1e-8
+		AUX = rhoz(i) + mr*BF
+		rhomag(i) = AUX
+		MPTEMP,%i%,%T%
+		MPDATA,RSVX,cuivre,%i%,%AUX%
+	*ENDDO
+*ELSEIF,DATASET,eq,'NIST',THEN
+	! NIST
+	P(1) = 1.171e-17
+	P(2) = 4.49
+	P(3) = 3.841e10
+	P(4) = 1.14
+	P(5) = 50
+	P(6) = 6.428
+	P(7) = 0.4531
+
+	A(1) = -2.662
+	A(2) = 0.3168
+	A(3) = 0.6229
+	A(4) = -0.1839
+	A(5) = 0.01827
+
+	rho0 = 1.553e-8/RRR	
+	
+	T = 273
+	rhoi = P(1)*T**(P(2))/(1+P(1)*P(3)*T**(P(2)-P(4))*EXP(-(P(5)/T)**(P(6))))
+	rhoi0 = P(7)*rhoi*rho0/(rhoi+rho0)
+	rhoz273 = rho0 + rhoi + rhoi0
+
+	*DO,i,1,NTEMP,1
+		T = C(i)
+		rhoi = P(1)*T**(P(2))/(1+P(1)*P(3)*T**(P(2)-P(4))*EXP(-(P(5)/T)**(P(6))))
+		rhoi0 = P(7)*rhoi*rho0/(rhoi+rho0)
+		rhoz(i) = rho0 + rhoi + rhoi0
+		S = rhoz273/rhoz(i)
+		*IF,S*BF,gt,0.589,THEN
+			X = LOG10(S*BF)
+			AUX = 0
+			*DO,j,1,5,1
+				AUX = AUX + A(j)*(X**(j-1))
+			*ENDDO
+			rhomag(i) = rhoz(i)*(1+10**AUX)	
+			AUX = rhomag(i)
+		*ELSE
+			AUX = rhoz(i)
+		*ENDIF
+		MPTEMP,%i%,%T%
+		MPDATA,RSVX,cuivre,%i%,%AUX%
+	*ENDDO
+*ENDIF
+		
+
+!***************************************************************************
+
+
+
+!***************************************************************************
+! Thermal Conductivity
+!***************************************************************************
+
+MPTEMP
+
+!NIST
+beta = 0.634/RRR
+betar = beta/0.0003
+P(1) = 1.754e-8
+P(2) = 2.763
+P(3) = 1102
+P(4) = -0.165
+P(5) = 70
+P(6) = 1.756
+P(7) = 0.838/betar**0.1661
+
+*DO,i,1,NTEMP,1
+	T = C(i)
+	W0 = beta/T
+	Wi = P(1)*T**(P(2))/(1+P(1)*P(3)*T**(P(2)+P(4))*exp(-(P(5)/T)**(P(6))))
+	Wi0 = P(7)*Wi*W0/(Wi + W0)
+	AUX = 1/(W0 + Wi + Wi0)
+	AUX = AUX*rhoz(i)/rhomag(i)
+	MPTEMP,%i%,%T%
+	MPDATA,KXX,cuivre,%i%,%AUX%
+*ENDDO
+
+!***************************************************************************

@@ -1,0 +1,192 @@
+*DOWHILE,STP	
+	
+	/SOLU
+
+	*IF,jj,gt,1,THEN
+		PARSAV,ALL,'param',' ',' '  	! Save parameters
+		ANTYPE,,REST,,,CONTINUE		! Restart Analysis
+		PARRES,NEW,'param',' ','	! Load parameters
+		
+		! Loop over all Nb3Sn elements in order to apply quench condition
+		*DO,ii,1,NoElem,1
+
+			Tc = ARR_TEMP(Nb3SnElem(ii))	! Retrieve temperature of Nb3Sn element
+
+			! Compute critical current density for that Nb3Sn element
+			Tn = Tc/Tc0
+			*IF,Tn,ge,1,THEN
+				Jc = 0
+			*ELSEIF,BF,le,0.1
+				Jc = 99
+			*ELSE
+				Bc2 = Bc20*(1-Tn**1.52)
+				Bn = Bf/Bc2
+				Jc = CJ/Bf*(1-(Tn**1.52))*(1-(Tn**2))*(Bn**0.5)*((1-Bn)**2)
+			*ENDIF
+			
+			! If current density on the element is greater than the critical one, the superconducting element is quenched
+			*IF,ABS(ARR_JS(Nb3SnElem(ii))*1e-9),ge,Jc,OR,quenched(ii),eq,8,THEN
+				MPCHG,8,Nb3SnElem(ii)			! Change material properties of the element to resistive
+				quenched(ii) = 8			! Update the element state to resistive
+				qnumber = qnumber + 1			! Increase the number of quenched elements
+				*GET,zq,ELEM,Nb3SnElem(ii),CENT,Z	! Retrieve the coordinates of element centroid
+
+				! Update maximum and minimum axial coordinates of quenched region
+				*IF,zq,gt,zmax,THEN
+					zmax = zq
+				*ELSEIF,zq,lt,zmin,THEN
+					zmin = zq
+				*ENDIF
+			*ENDIF
+		*ENDDO
+
+		! When 'SHEATER' or 'SHFLUX' are used, this checks the condition for quenching the whole section (quench initiation)
+		*IF,hopt,EQ,'SHEATER',AND,QFLAG,eq,0,THEN
+			CMSEL,S,SUPERCOND
+			VSEL,R,LOC,Z,LHEATER/2
+			ESLV,R
+			ESEL,R,MAT,,8
+			! Get the number of elements quenched under the spot heater
+			*GET,QElemiS,ELEM,0,COUNT
+			ALLS
+
+			! If at leat one element under the heater is quenched, then all the elements in the resistive region are quenched
+			*IF,QElemiS,gt,0*NoElemiS,THEN
+				! Loop over all Nb3Sn elements under the heater
+				*DO,ii,1,NoElemiS,1
+					*GET,zq,ELEM,Nb3SnElemiS(ii),CENT,Z
+					*IF,zq,LE,zmax,OR,zq,GE,zmin,THEN
+						MPCHG,8,Nb3SnElemiS(ii)
+						quenched(ii) = 8
+						qnumber = qnumber + 1
+					*ENDIF		
+				*ENDDO
+				QFLAG = 1
+				*CFOPEN,report,txt,,APPEND
+				*vwrite,jj,stime*1000
+				Time step %4i: Quench started at %4.3f ms.
+				*CFCLOSE
+			*ELSE
+				TcMax = TEMPIN
+				*DO,ii,1,NoElemiS,1
+					*IF,ARR_TEMP(Nb3SnElemiS(ii)),GT,TcMax,THEN
+						TcMax = ARR_TEMP(Nb3SnElemiS(ii))
+					*ENDIF		
+				*ENDDO
+			*ENDIF
+		*ENDIF
+
+		!Update Copper resistivity (magnetic field changes)
+		*IF,B_ARR(jj,2)-B_ARR(jj-1,2),gt,0.05,THEN
+			MPDE,ALL,cuivre
+			/INPUT,props_Cu,txt 
+			supra = 4
+			MPDE,ALL,supra,txt
+			Tc = Tcin
+			/INPUT,props_Nb3Sn,txt
+			MP,RSVX,supra, 1e-18
+		*ENDIF
+	*ENDIF
+	
+	*CFOPEN,report,txt,,APPEND
+	pstime = stime
+	*IF,qnumber,eq,0,THEN
+		!ti = 400e-6
+		!tf = 20 e-6
+		!Dtn = ti + (tf-ti)*((TcMax - TEMPIN)/(Tcin - TEMPIN))**5
+		!stime = stime + Dtn
+		!DELTIM,Dtn/2,Dtn/4,Dtn,on
+		*IF,TcMax,LE,0.8*Tcin,THEN
+			stime = stime + 200E-6
+			DELTIM,100E-6,20e-6,200E-6,on
+		*ELSE
+			stime = stime + 50E-6
+			DELTIM,25E-6,10e-6,50E-6,on
+		*ENDIF
+	*ELSEIF,qnumber,eq,NoElem,THEN
+		*vwrite,jj,stime*1000
+		Time step %4i: Quench fully propagated at %4.3f ms.
+		stime = TSIM
+		DELTIM,0.5E-3,0.1e-3,1E-3,on
+	*ELSE
+		*vwrite,jj,zmin*1000,zmax*1000,stime*1000
+		Time step %4i: Quenched elements between %6.2f mm and %6.2f mm at %4.3f ms.
+		stime = stime + DT
+		DELTIM,DT/2,1e-6,DT,on
+	*ENDIF
+	*vwrite,jj,pstime*1000,qnumber,NoElem
+		Time step %4i: Number of quenched Nb3Sn elements at %6.3f ms, %6i out of %6i.
+	*CFCLOSE
+
+	qnumber = 0
+
+	*IF,stime,ge,TSIM,THEN
+		stime = TSIM
+		STP = 0
+	*ENDIF
+
+	F,NI,AMPS,-I_ARR(jj,2)/(2*total_strands)*half_strands
+
+	TIME,stime	
+	SOLVE
+
+	FINISH
+	
+	/POST1
+
+	*GET,VT,NODE,NI,VOLT
+	VT = ABS(VT)
+	Rm = VT/I_ARR(jj,2)
+
+	ETABLE,TEMP_Nb3Sn,TEMP
+	ETABLE,JS_Nb3Sn,JS,SUM
+
+	*VGET,ARR_TEMP,ELEM, ,ETAB,TEMP_NB3SN, , ,2 
+	*VGET,ARR_JS,ELEM, ,ETAB,JS_NB3SN, , ,2	
+
+	! Get maximum and minimum element temperatures
+	ESORT,ETAB,TEMP_Nb3Sn
+	*GET,EMAXTEMP_ARR(jj+1,2),SORT,,MAX
+	*GET,EMAXTEMP_ARR(jj+1,3),SORT,,IMAX
+	*GET,EMINTEMP_ARR(jj+1,2),SORT,,MIN
+	*GET,EMINTEMP_ARR(jj+1,3),SORT,,IMIN
+	EMAXTEMP_ARR(jj+1,1) = stime
+	EMINTEMP_ARR(jj+1,1) = stime
+
+	*GET,EMAXTEMP_ARR(jj+1,4),ELEM,EMAXTEMP_ARR(jj+1,3),CENT,X
+	*GET,EMAXTEMP_ARR(jj+1,5),ELEM,EMAXTEMP_ARR(jj+1,3),CENT,Y
+	*GET,EMAXTEMP_ARR(jj+1,6),ELEM,EMAXTEMP_ARR(jj+1,3),CENT,Z
+	*GET,EMINTEMP_ARR(jj+1,4),ELEM,EMINTEMP_ARR(jj+1,3),CENT,X
+	*GET,EMINTEMP_ARR(jj+1,5),ELEM,EMINTEMP_ARR(jj+1,3),CENT,Y
+	*GET,EMINTEMP_ARR(jj+1,6),ELEM,EMINTEMP_ARR(jj+1,3),CENT,Z
+
+	! Get maximum and minimum nodal temperatures
+	NSORT,TEMP
+	*GET,NMAXTEMP_ARR(jj+1,2),sort,,max
+	*GET,NMINTEMP_ARR(jj+1,2),sort,,min
+	NMAXTEMP_ARR(jj+1,1) = stime
+	NMINTEMP_ARR(jj+1,1) = stime
+
+	FINISH
+
+	jj = jj + 1
+	
+	I_ARR(jj,1) = stime
+	*IF,diopt,NE,0,THEN
+		*IF,VTR*LEN/0.15,LE,VT,OR,FLAG,EQ,1,THEN
+			EFLAG = 1
+			I_ARR(jj,2) = I_ARR(jj-1,2)*EXP(-(Rm+Rd)*(stime-pstime)/L)
+		*ELSE
+			I_ARR(jj,2) = I_ARR(jj-1,2)*EXP(-Rm*(stime-pstime)/L)
+		*ENDIF
+	*ELSE
+		I_ARR(jj,2) = Iop
+	*ENDIF
+	
+	Bf = LLa*I_ARR(jj,2) + LLb
+
+	B_ARR(jj,1) = stime
+	B_ARR(jj,2) = Bf
+
+	SAVE
+*ENDDO

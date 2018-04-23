@@ -1,0 +1,128 @@
+/PREP7
+
+!***************************************************************************
+! Elements, SOLID226 = Thermo-electric, SOLID278 = Thermal
+!***************************************************************************
+
+cuivre = 3
+ET,cuivre,SOLID226,110
+
+supra = 4
+ET,supra4,SOLID226,110
+
+impregna = 5
+ET,impregna,SOLID278
+
+insula = 6
+ET,insula,SOLID278
+
+heater = 7
+ET,heater,SOLID278
+
+!***************************************************************************
+
+!***************************************************************************
+! Load temperature dependent material properties
+!***************************************************************************
+
+*DIM,A,,9
+*DIM,B,,8
+*DIM,P,,7
+*DIM,C,,100
+
+*IF,TEMPIN,ge,4,THEN
+	*DO,i,1,100,1
+		*IF,i,le,25,THEN
+			C(i) = 4 + 0.8*(i-1)
+		*ELSEIF,i,le,50,THEN
+			C(i) = 24 + (i-26)
+		*ELSEIF,i,le,100,THEN
+			C(i) = 50 + (MAXTEMP-50)/50*(i-51)
+		*ENDIF
+	*ENDDO
+*ELSEIF,TEMPIN,ge,1,THEN
+	*DO,i,1,100,1
+		*IF,i,le,6,THEN
+			C(i) = 1 + 0.5*(i-1)
+		*ELSEIF,i,le,31,THEN
+			C(i) = 4 + 0.8*(i-7)
+		*ELSEIF,i,le,56,THEN
+			C(i) = 24 + (i-32)
+		*ELSEIF,i,le,100,THEN
+			C(i) = 50 + (MAXTEMP-50)/43*(i-57)
+		*ENDIF
+	*ENDDO
+*ENDIF
+
+/INPUT, props_Cu, txt,, , 
+/INPUT, props_Nb3Sn, txt,, , 
+/INPUT, props_G10, txt,, , 
+/INPUT, props_Kapton, txt,, , 
+acier = heater
+/INPUT, props_SS304, txt,, , 
+
+! Superconductor Nb3Sn
+MP,RSVX,supra, 1e-18
+
+! Resistive Nb3SN	
+supra = 8
+/INPUT, props_Nb3Sn, txt,, , 
+
+supra = 4
+
+!***************************************************************************
+
+!***************************************************************************
+! Material properties to components 
+!***************************************************************************
+
+ALLS
+
+CMSEL,S,copper,VOLU
+!VSEL,,,,ALL 
+VATT,cuivre,,cuivre,0,
+ALLS
+
+CMSEL,S,supercond,VOLU
+VATT,supra,,supra,0,
+ALLS
+
+CMSEL,S,impreg,VOLU 
+VATT,impregna,,impregna,0,
+ALLS
+
+CMSEL,S,insul,VOLU 
+VATT,insula,,insula,0,
+ALLS
+
+*IF,hopt,EQ,'SHEATER',THEN
+	CMSEL,s,heater,VOLU
+	VATT,heater,,heater,0,
+	ALLS
+*ENDIF
+
+CMSEL,ALL
+CMPLOT
+
+!***************************************************************************
+
+!***************************************************************************
+! Meshing
+!***************************************************************************
+
+! Mapped mesh
+MSHKEY,1	
+
+VMESH,impreg
+VMESH,insul
+
+*IF,hopt,EQ,'SHEATER',THEN
+	VMESH,heater
+*ENDIF
+
+VMESH,copper
+VMESH,supercond
+
+!***************************************************************************
+
+FINISH

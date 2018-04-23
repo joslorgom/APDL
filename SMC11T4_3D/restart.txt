@@ -1,0 +1,115 @@
+/batch
+
+!###########################################################################
+! 	Short Model Coil (SMC): 3-D Thermal model
+!###########################################################################
+
+FINISH
+
+!###########################################################################
+! Before running Main_prog check the following
+!###########################################################################
+
+! Ensure the working directory is correct before running Main_prog
+/CWD,'C:\Temp\test36'
+RESUME,QPV,DB
+
+/FILENAME,QPV
+
+TSIM_P = TSIM
+
+! Simulation Time
+TSIM = 5e-3
+
+*IF,TSIM,gt,TSIM_P,THEN
+
+	STP = 1
+
+	*DIM,IAUX_ARR,ARRAY,NSIM+1,2
+	*DIM,BAUX_ARR,ARRAY,NSIM+1,2
+	*DIM,NMAXTEMP_AUX_ARR,ARRAY,NSIM+1,2
+	*DIM,NMINTEMP_AUX_ARR,ARRAY,NSIM+1,2
+	*DIM,EMAXTEMP_AUX_ARR,ARRAY,NSIM+1,6
+	*DIM,EMINTEMP_AUX_ARR,ARRAY,NSIM+1,6
+
+	*DO,ii,1,NSIM+1,1
+		IAUX_ARR(ii,1) = I_ARR(ii,1)
+		IAUX_ARR(ii,2) = I_ARR(ii,2)
+		BAUX_ARR(ii,1) = B_ARR(ii,1)
+		BAUX_ARR(ii,2) = B_ARR(ii,2)
+		NMAXTEMP_AUX_ARR(ii,1) = NMAXTEMP_ARR(ii,1)
+		NMAXTEMP_AUX_ARR(ii,2) = NMAXTEMP_ARR(ii,2)
+		NMINTEMP_AUX_ARR(ii,1) = NMINTEMP_ARR(ii,1)
+		NMINTEMP_AUX_ARR(ii,2) = NMINTEMP_ARR(ii,2)
+		EMAXTEMP_AUX_ARR(ii,1) = EMAXTEMP_ARR(ii,1)
+		EMAXTEMP_AUX_ARR(ii,2) = EMAXTEMP_ARR(ii,2)
+		EMAXTEMP_AUX_ARR(ii,3) = EMAXTEMP_ARR(ii,3)
+		EMAXTEMP_AUX_ARR(ii,4) = EMAXTEMP_ARR(ii,4)
+		EMAXTEMP_AUX_ARR(ii,5) = EMAXTEMP_ARR(ii,5)
+		EMAXTEMP_AUX_ARR(ii,6) = EMAXTEMP_ARR(ii,6)
+		EMINTEMP_AUX_ARR(ii,1) = EMINTEMP_ARR(ii,1)
+		EMINTEMP_AUX_ARR(ii,2) = EMINTEMP_ARR(ii,2)
+		EMINTEMP_AUX_ARR(ii,3) = EMINTEMP_ARR(ii,3)
+		EMINTEMP_AUX_ARR(ii,4) = EMINTEMP_ARR(ii,4)
+		EMINTEMP_AUX_ARR(ii,5) = EMINTEMP_ARR(ii,5)
+		EMINTEMP_AUX_ARR(ii,6) = EMINTEMP_ARR(ii,6)
+	*ENDDO
+
+	*SET,I_ARR,,
+	*SET,B_ARR,,
+	*SET,NMAXTEMP_ARR,,
+	*SET,NMINTEMP_ARR,,
+	*SET,EMAXTEMP_ARR,,
+	*SET,EMINTEMP_ARR,,
+	
+	NSIMP = NSIM
+	NSIM = TSIM/DT
+
+	*DIM,I_ARR,ARRAY,NSIM+1,2
+	*DIM,B_ARR,ARRAY,NSIM+1,2
+	*DIM,NMAXTEMP_ARR,ARRAY,NSIM+1,2
+	*DIM,NMINTEMP_ARR,ARRAY,NSIM+1,2
+	*DIM,EMAXTEMP_ARR,ARRAY,NSIM+1,6
+	*DIM,EMINTEMP_ARR,ARRAY,NSIM+1,6
+
+	*DO,ii,1,NSIMP+1,1
+		I_ARR(ii,1) = IAUX_ARR(ii,1)
+		I_ARR(ii,2) = IAUX_ARR(ii,2)
+		B_ARR(ii,1) = BAUX_ARR(ii,1)
+		B_ARR(ii,2) = BAUX_ARR(ii,2)
+		NMAXTEMP_ARR(ii,1) = NMAXTEMP_AUX_ARR(ii,1)
+		NMAXTEMP_ARR(ii,2) = NMAXTEMP_AUX_ARR(ii,2)
+		NMINTEMP_ARR(ii,1) = NMINTEMP_AUX_ARR(ii,1)
+		NMINTEMP_ARR(ii,2) = NMINTEMP_AUX_ARR(ii,2)
+		EMAXTEMP_ARR(ii,1) = EMAXTEMP_AUX_ARR(ii,1)
+		EMAXTEMP_ARR(ii,2) = EMAXTEMP_AUX_ARR(ii,2)
+		EMAXTEMP_ARR(ii,3) = EMAXTEMP_AUX_ARR(ii,3)
+		EMAXTEMP_ARR(ii,4) = EMAXTEMP_AUX_ARR(ii,4)
+		EMAXTEMP_ARR(ii,5) = EMAXTEMP_AUX_ARR(ii,5)
+		EMAXTEMP_ARR(ii,6) = EMAXTEMP_AUX_ARR(ii,6)
+		EMINTEMP_ARR(ii,1) = EMINTEMP_AUX_ARR(ii,1)
+		EMINTEMP_ARR(ii,2) = EMINTEMP_AUX_ARR(ii,2)
+		EMINTEMP_ARR(ii,3) = EMINTEMP_AUX_ARR(ii,3)
+		EMINTEMP_ARR(ii,4) = EMINTEMP_AUX_ARR(ii,4)
+		EMINTEMP_ARR(ii,5) = EMINTEMP_AUX_ARR(ii,5)
+		EMINTEMP_ARR(ii,6) = EMINTEMP_AUX_ARR(ii,6)
+	*ENDDO
+
+	*SET,IAUX_ARR,,
+	*SET,BAUX_ARR,,
+	*SET,NMAXTEMP_AUX_ARR,,
+	*SET,NMINTEMP_AUX_ARR,,
+	*SET,EMAXTEMP_AUX_ARR,,
+	*SET,EMINTEMP_AUX_ARR,,
+	
+*ENDIF
+
+
+
+!###########################################################################
+! Solution loop
+!###########################################################################
+
+/INPUT,solver,txt
+
+!###########################################################################
